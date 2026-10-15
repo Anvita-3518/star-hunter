@@ -1,0 +1,532 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Star Hunter 🚀</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #050923;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+h1 {
+  margin: 12px 0;
+  color: #ffd84d;
+  font-size: clamp(27px, 6vw, 44px);
+  text-shadow: 0 0 15px #ff8c00;
+}
+
+#stats {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #65e6ff;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  max-width: 850px;
+  margin: 0 auto;
+  border: 3px solid #318cff;
+  border-radius: 12px;
+  background: #071440;
+  touch-action: none;
+}
+
+button {
+  background: linear-gradient(135deg, #167cff, #713bff);
+  color: white;
+  border: 2px solid #76dfff;
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin: 5px;
+  font-size: 17px;
+  font-weight: bold;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:active {
+  transform: scale(0.94);
+  background: #ffae22;
+}
+
+#controls {
+  max-width: 850px;
+  margin: 10px auto;
+}
+
+#message {
+  min-height: 26px;
+  color: #ffe477;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>⭐ STAR HUNTER 🚀</h1>
+
+<div id="stats">
+  <span>⭐ Score: <span id="score">0</span></span>
+  <span>❤️ Lives: <span id="lives">3</span></span>
+  <span>🏆 Level: <span id="level">1</span></span>
+</div>
+
+<canvas id="game" width="800" height="500"></canvas>
+
+<div id="message">
+  Collect stars and dodge the asteroids!
+</div>
+
+<div id="controls">
+  <div>
+    <button data-key="ArrowUp">⬆️</button>
+  </div>
+  <div>
+    <button data-key="ArrowLeft">⬅️</button>
+    <button data-key="ArrowDown">⬇️</button>
+    <button data-key="ArrowRight">➡️</button>
+  </div>
+  <button id="restart">🔄 Restart Game</button>
+</div>
+
+<p>💡 Use your arrow keys or the buttons to fly!</p>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const W = canvas.width;
+const H = canvas.height;
+
+let keys = {};
+let score, lives, level, running;
+let ship, stars, asteroids, particles, bgStars;
+let lastTime = 0;
+let invincible = 0;
+let spawnTimer = 0;
+
+function random(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+function resetGame() {
+  score = 0;
+  lives = 3;
+  level = 1;
+  running = true;
+  invincible = 0;
+  spawnTimer = 0;
+
+  ship = { x: W / 2, y: H - 70, r: 17, speed: 280 };
+  stars = [];
+  asteroids = [];
+  particles = [];
+  bgStars = [];
+
+  for (let i = 0; i < 100; i++) {
+    bgStars.push({
+      x: random(0, W),
+      y: random(0, H),
+      size: random(1, 2.8),
+      phase: random(0, 6.28)
+    });
+  }
+
+  for (let i = 0; i < 8; i++) addStar();
+  for (let i = 0; i < 3; i++) addAsteroid();
+
+  updateStats();
+  document.getElementById("message").textContent =
+    "Collect stars and dodge the asteroids!";
+}
+
+function addStar() {
+  stars.push({
+    x: random(25, W - 25),
+    y: random(35, H - 100),
+    r: 11,
+    phase: random(0, 6.28)
+  });
+}
+
+function addAsteroid() {
+  asteroids.push({
+    x: random(25, W - 25),
+    y: random(25, H - 80),
+    r: random(13, 19),
+    vx: random(-75, 75),
+    vy: random(-65, 65)
+  });
+}
+
+function updateStats() {
+  document.getElementById("score").textContent = score;
+  document.getElementById("lives").textContent = lives;
+  document.getElementById("level").textContent = level;
+}
+
+function drawShip() {
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+
+  // Rocket flame
+  ctx.fillStyle = "#ff812d";
+  ctx.beginPath();
+  ctx.moveTo(-9, 12);
+  ctx.lineTo(0, 29 + Math.random() * 7);
+  ctx.lineTo(9, 12);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffe36b";
+  ctx.beginPath();
+  ctx.moveTo(-4, 14);
+  ctx.lineTo(0, 24);
+  ctx.lineTo(4, 14);
+  ctx.fill();
+
+  // Wings
+  ctx.fillStyle = "#ff4d75";
+  ctx.beginPath();
+  ctx.moveTo(-11, 3);
+  ctx.lineTo(-24, 16);
+  ctx.lineTo(-10, 14);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(11, 3);
+  ctx.lineTo(24, 16);
+  ctx.lineTo(10, 14);
+  ctx.fill();
+
+  // Spaceship body
+  ctx.fillStyle = "#e9f6ff";
+  ctx.strokeStyle = "#54c9ff";
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+  ctx.moveTo(0, -23);
+  ctx.quadraticCurveTo(19, -4, 12, 14);
+  ctx.lineTo(-12, 14);
+  ctx.quadraticCurveTo(-19, -4, 0, -23);
+  ctx.fill();
+  ctx.stroke();
+
+  // Cockpit
+  ctx.fillStyle = "#22cfff";
+  ctx.beginPath();
+  ctx.arc(0, -5, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawStar(x, y, radius, rotation) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? radius : radius * 0.45;
+    const a = i * Math.PI / 5 - Math.PI / 2;
+    const px = Math.cos(a) * r;
+    const py = Math.sin(a) * r;
+
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+
+  ctx.closePath();
+  ctx.fillStyle = "#ffdf38";
+  ctx.shadowColor = "#ffae00";
+  ctx.shadowBlur = 16;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawAsteroid(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.fillStyle = "#8589bd";
+  ctx.strokeStyle = "#b9c5ff";
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+
+  for (let i = 0; i < 9; i++) {
+    const angle = i * Math.PI * 2 / 9;
+    const radius = a.r * (0.78 + 0.22 * Math.sin(i * 4.2));
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#515986";
+  ctx.beginPath();
+  ctx.arc(-4, -3, 3, 0, Math.PI * 2);
+  ctx.arc(5, 4, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function makeParticles(x, y, color) {
+  for (let i = 0; i < 12; i++) {
+    particles.push({
+      x, y,
+      vx: random(-100, 100),
+      vy: random(-100, 100),
+      life: 0.5,
+      color
+    });
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  const gradient = ctx.createLinearGradient(0, 0, W, H);
+  gradient.addColorStop(0, "#091344");
+  gradient.addColorStop(0.5, "#10266b");
+  gradient.addColorStop(1, "#080c2e");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, W, H);
+
+  // Twinkling background stars
+  bgStars.forEach(s => {
+    ctx.globalAlpha =
+      0.45 + 0.45 * Math.abs(Math.sin(s.phase));
+    ctx.fillStyle = "white";
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  });
+  ctx.globalAlpha = 1;
+
+  // Collectible stars
+  stars.forEach(s => {
+    drawStar(s.x, s.y, s.r,
+      Math.sin(s.phase) * 0.2);
+  });
+
+  asteroids.forEach(drawAsteroid);
+
+  // Explosion particles
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.max(0, p.life * 2);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, 4, 4);
+  });
+  ctx.globalAlpha = 1;
+
+  // Brief flashing after a collision
+  if (invincible <= 0 || Math.floor(invincible * 10) % 2 === 0) {
+    drawShip();
+  }
+
+  if (!running) {
+    ctx.fillStyle = "rgba(0, 0, 20, 0.78)";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffdf45";
+    ctx.font = "bold 46px Arial";
+    ctx.fillText("GAME OVER!", W / 2, H / 2 - 30);
+
+    ctx.fillStyle = "white";
+    ctx.font = "bold 24px Arial";
+    ctx.fillText("Final Score: " + score, W / 2, H / 2 + 15);
+
+    ctx.font = "18px Arial";
+    ctx.fillText("Press Restart to play again!",
+      W / 2, H / 2 + 55);
+  }
+}
+
+function update(dt) {
+  if (!running) return;
+
+  invincible = Math.max(0, invincible - dt);
+  spawnTimer += dt;
+
+  // Ship movement
+  let dx = 0, dy = 0;
+
+  if (keys.ArrowLeft || keys.a) dx--;
+  if (keys.ArrowRight || keys.d) dx++;
+  if (keys.ArrowUp || keys.w) dy--;
+  if (keys.ArrowDown || keys.s) dy++;
+
+  if (dx !== 0 && dy !== 0) {
+    dx *= 0.7071;
+    dy *= 0.7071;
+  }
+
+  ship.x += dx * ship.speed * dt;
+  ship.y += dy * ship.speed * dt;
+
+  ship.x = Math.max(ship.r, Math.min(W - ship.r, ship.x));
+  ship.y = Math.max(ship.r, Math.min(H - ship.r, ship.y));
+
+  // Rotate collectible stars
+  stars.forEach(s => s.phase += dt * 2);
+
+  // Move asteroids
+  asteroids.forEach(a => {
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+
+    if (a.x < a.r || a.x > W - a.r) a.vx *= -1;
+    if (a.y < a.r || a.y > H - a.r) a.vy *= -1;
+
+    a.x = Math.max(a.r, Math.min(W - a.r, a.x));
+    a.y = Math.max(a.r, Math.min(H - a.r, a.y));
+  });
+
+  // Collect stars
+  for (let i = stars.length - 1; i >= 0; i--) {
+    const s = stars[i];
+    const distance = Math.hypot(ship.x - s.x, ship.y - s.y);
+
+    if (distance < ship.r + s.r) {
+      makeParticles(s.x, s.y, "#ffdf38");
+      stars.splice(i, 1);
+      score += 10;
+      addStar();
+
+      const newLevel = Math.floor(score / 100) + 1;
+
+      if (newLevel > level) {
+        level = newLevel;
+        addAsteroid();
+        document.getElementById("message").textContent =
+          "🚀 LEVEL " + level + "! Watch out!";
+      } else {
+        document.getElementById("message").textContent =
+          "⭐ Great catch, space explorer!";
+      }
+
+      updateStats();
+    }
+  }
+
+  // Asteroid collisions
+  if (invincible <= 0) {
+    for (const a of asteroids) {
+      if (Math.hypot(ship.x - a.x, ship.y - a.y)
+          < ship.r + a.r - 3) {
+
+        lives--;
+        invincible = 1.5;
+        makeParticles(ship.x, ship.y, "#ff5577");
+
+        // Move the ship to a safe position
+        ship.x = W / 2;
+        ship.y = H - 60;
+
+        updateStats();
+
+        if (lives <= 0) {
+          running = false;
+          document.getElementById("message").textContent =
+            "Game over, space explorer!";
+        } else {
+          document.getElementById("message").textContent =
+            "💥 Ouch! Watch out for asteroids!";
+        }
+        break;
+      }
+    }
+  }
+
+  // Update particles
+  particles.forEach(p => {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+  });
+  particles = particles.filter(p => p.life > 0);
+}
+
+function loop(timestamp) {
+  const dt = lastTime
+    ? Math.min((timestamp - lastTime) / 1000, 0.04)
+    : 0;
+
+  lastTime = timestamp;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Keyboard controls
+document.addEventListener("keydown", e => {
+  if ([
+    "ArrowUp", "ArrowDown",
+    "ArrowLeft", "ArrowRight", " "
+  ].includes(e.key)) {
+    e.preventDefault();
+  }
+
+  keys[e.key] = true;
+  keys[e.key.toLowerCase()] = true;
+});
+
+document.addEventListener("keyup", e => {
+  keys[e.key] = false;
+  keys[e.key.toLowerCase()] = false;
+});
+
+// On-screen controls: also work with touch
+document.querySelectorAll("[data-key]").forEach(button => {
+  const key = button.dataset.key;
+
+  const release = e => {
+    e.preventDefault();
+    keys[key] = false;
+  };
+
+  button.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    keys[key] = true;
+    if (button.setPointerCapture) {
+      button.setPointerCapture(e.pointerId);
+    }
+  });
+
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+  button.addEventListener("contextmenu", e => e.preventDefault());
+});
+
+document.getElementById("restart").addEventListener("click", () => {
+  resetGame();
+  lastTime = 0;
+});
+
+resetGame();
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
